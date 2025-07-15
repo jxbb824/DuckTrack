@@ -13,6 +13,7 @@ from .obs_client import close_obs, is_obs_running, open_obs
 from .playback import Player, get_latest_recording
 from .recorder import Recorder
 from .util import get_recordings_dir, open_file
+from .keycomb import KeyCombinationListener
 
 
 class TitleDescriptionDialog(QDialog):
@@ -52,9 +53,14 @@ class MainInterface(QWidget):
         
         self.init_tray()
         self.init_window()
-        
+
         if not is_obs_running():
             self.obs_process = open_obs()
+
+        # listen for global hotkey to toggle recording
+        self.hotkey_listener = KeyCombinationListener()
+        self.hotkey_listener.add_comb(("ctrl", "alt", "r"), self.toggle_record)
+        self.hotkey_listener.start()
 
     def init_window(self):
         self.setWindowTitle("DuckTrack")
@@ -170,6 +176,8 @@ class MainInterface(QWidget):
             self.toggle_record()
         if hasattr(self, "obs_process"):
             close_obs(self.obs_process)
+        if hasattr(self, "hotkey_listener"):
+            self.hotkey_listener.stop()
         self.app.quit()
 
     def closeEvent(self, event):
