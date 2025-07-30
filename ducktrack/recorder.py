@@ -143,3 +143,16 @@ class Recorder(QThread):
         os.mkdir(recording_path)
 
         return recording_path
+    
+    def rename_mp4_file(self, new_name: str):
+        """Rename the MP4 file in the recording folder"""
+        try:
+            # Find the MP4 file in the recording folder
+            for filename in os.listdir(self.recording_path):
+                if filename.endswith('.mp4'):
+                    old_path = os.path.join(self.recording_path, filename)
+                    new_path = os.path.join(self.recording_path, f"{new_name}.mp4")
+                    os.rename(old_path, new_path)
+                    break
+        except Exception as e:
+            print(f"Failed to rename MP4 file: {e}")

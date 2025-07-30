@@ -1,33 +1,24 @@
-from pynput.keyboard import Listener
-
-from .util import name_to_key
+import keyboard
 
 
 class KeyCombinationListener:
     """
-    Simple and bad key combination listener.
+    Key combination listener using the 'keyboard' library.
     """
-    
+
     def __init__(self):
-        self.current_keys = set()
-        self.callbacks = {}
-        self.listener = Listener(on_press=self.on_key_press, on_release=self.on_key_release)
+        self.hotkeys = []
 
     def add_comb(self, keys, callback):
-        self.callbacks[tuple([name_to_key(key_name) for key_name in sorted(keys)])] = callback
-
-    def on_key_press(self, key):
-        self.current_keys.add(key)
-        for comb, callback in self.callbacks.items():
-            if all(k in self.current_keys for k in comb):
-                return callback()
-
-    def on_key_release(self, key):
-        if key in self.current_keys:
-            self.current_keys.remove(key)
+        hotkey_string = "+".join(keys)
+        # Using suppress=True to prevent the key combination from being passed to other applications
+        hotkey = keyboard.add_hotkey(hotkey_string, callback, suppress=True)
+        self.hotkeys.append(hotkey)
 
     def start(self):
-        self.listener.start()
+        # The 'keyboard' library starts listening automatically
+        # when a hotkey is registered.
+        pass
 
     def stop(self):
-        self.listener.stop()
+        keyboard.unhook_all_hotkeys()

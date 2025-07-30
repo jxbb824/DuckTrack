@@ -2,7 +2,7 @@ import os
 import sys
 from platform import system
 
-from PyQt6.QtCore import QTimer, pyqtSlot
+from PyQt6.QtCore import QTimer, pyqtSlot, pyqtSignal
 from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import (QApplication, QCheckBox, QDialog, QFileDialog,
                              QFormLayout, QLabel, QLineEdit, QMenu,
@@ -44,6 +44,8 @@ class TitleDescriptionDialog(QDialog):
         return self.title_input.text(), self.description_input.toPlainText()
 
 class MainInterface(QWidget):
+    toggle_record_requested = pyqtSignal()
+    
     def __init__(self, app: QApplication):
         super().__init__()
         self.tray = QSystemTrayIcon(QIcon(resource_path("assets/duck.png")))
@@ -57,9 +59,10 @@ class MainInterface(QWidget):
         if not is_obs_running():
             self.obs_process = open_obs()
 
-        # listen for global hotkey to toggle recording
+        # Thread-safe recording toggle: hotkey callback emits signal, main thread executes UI logic
+        self.toggle_record_requested.connect(self.toggle_record)
         self.hotkey_listener = KeyCombinationListener()
-        self.hotkey_listener.add_comb(("ctrl", "alt", "r"), self.toggle_record)
+        self.hotkey_listener.add_comb(("ctrl", "alt", "r"), self.toggle_record_requested.emit)
         self.hotkey_listener.start()
 
     def init_window(self):
@@ -218,11 +221,17 @@ class MainInterface(QWidget):
 
             recording_dir = self.recorder_thread.recording_path
 
+            # Save recorder_thread reference for later MP4 file renaming
+            recorder_ref = self.recorder_thread
             del self.recorder_thread
             
             dialog = TitleDescriptionDialog()
             QTimer.singleShot(0, dialog.raise_)
             result = dialog.exec()
+
+            title = ""
+            description = ""
+            final_dir = recording_dir
 
             if result == QDialog.DialogCode.Accepted:
                 title, description = dialog.get_values()
@@ -230,11 +239,17 @@ class MainInterface(QWidget):
                 if title:
                     renamed_dir = os.path.join(os.path.dirname(recording_dir), title)
                     os.rename(recording_dir, renamed_dir)
-
-                    with open(os.path.join(renamed_dir, 'README.md'), 'w') as f:
-                        f.write(description)
+                    final_dir = renamed_dir
                     
-                self.on_recording_stopped()
+                    # Rename MP4 file
+                    recorder_ref.recording_path = renamed_dir
+                    recorder_ref.rename_mp4_file(title)
+
+            # Always create README.md file, even if user cancelled the dialog
+            with open(os.path.join(final_dir, 'README.md'), 'w') as f:
+                f.write(description if description else "No description provided.")
+                    
+            self.on_recording_stopped()
 
     @pyqtSlot()
     def on_recording_stopped(self):
